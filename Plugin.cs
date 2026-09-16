@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace BigTeleport
 {
-    [BepInPlugin("markviews.bigTeleport", "Big Teleport", "1.0.0")]
+    [BepInPlugin("markviews.bigTeleport", "Big Teleport", "1.0.1")]
     public class Plugin : BasePlugin
     {
 
@@ -76,7 +76,9 @@ namespace BigTeleport
 
         private void Start()
         {
-            InvokeRepeating(nameof(ScanForButton), 0f, 1f);
+            WorldManager.add_OnWorldManagerStart(new Action(() => {
+                InvokeRepeating(nameof(ScanForButton), 0f, 1f);
+            }));
         }
 
         private void Update()
@@ -199,7 +201,7 @@ namespace BigTeleport
                 attempt++;
                 if (attempt >= 10)
                 {
-                    Plugin.Log.LogInfo($"Teleport attempt ${pos} FAILED");
+                    Plugin.Log.LogInfo($"Teleport attempt {pos} FAILED");
                     ShowMessage("<color=red>Teleport Failed after 10 attempts</color>");
                     break;
                 }
@@ -210,7 +212,8 @@ namespace BigTeleport
                     break;
                 }
 
-                player.transform.position = pos;
+                player.grease.Teleport(pos, Quaternion.identity, true);
+                //player.transform.position = pos;
 
                 yield return null;
             }
@@ -219,10 +222,12 @@ namespace BigTeleport
 
         private void ScanForButton()
         {
+            //Plugin.Log.LogInfo($"ScanForButton");
+
             if (NetworkClient.localPlayer == null) return;
 
-            prefab = GameObject.Find("LandmarksNonChallenge/SpawnCourtyardandHubPlatform/Positioner/TeachingArea/Positioner/ObjectsTeaching/Switch/PushButton/BasicPushButton/PeckSwitchTrigger");
-            if (prefab == null) return;
+            GameObject originalButton = GameObject.Find("LandmarksNonChallenge/SpawnCourtyardandHubPlatform/Positioner/TeachingArea/Positioner/ObjectsTeaching/Switch/PushButton/BasicPushButton/PeckSwitchTrigger");
+            if (originalButton == null) return;
 
             GameObject chatBoxObj = GameObject.Find("WorldUI/WorldUICanvas/GameOverlay/TextChatInput/LocalInput/Text Area/Text");
             if (chatBoxObj == null) return;
@@ -236,6 +241,8 @@ namespace BigTeleport
             GameObject mapRoomRoof = GameObject.Find("LandmarksNonChallenge/MapRoom/Positioner/MapRoom/RoofParent");
             if (mapRoomRoof == null) return;
 
+            Plugin.Log.LogInfo($"ScanForButton SUCCESS");
+
             mapRoomRoof.SetActive(false);
             mapPosition = mapObj.transform.position;
             chatBox = chatBoxObj.GetComponent<TextMeshProUGUI>();
@@ -244,15 +251,38 @@ namespace BigTeleport
 
             CreateMyOutput();
 
-            prefab.transform.Find("CrosshairPosition").transform.localPosition = Vector3.zero;
+            // disable original button during copy to prevent console warnings about duplicate IDs before we remove PeckSwitch script
+            originalButton.SetActive(false);
+            prefab = GameObject.Instantiate(originalButton);
 
-            Plugin.Log.LogInfo($"Found target button: {prefab.name}");
+            prefab.transform.Find("CrosshairPosition").transform.localPosition = Vector3.zero;
+            UnityEngine.Object.Destroy(prefab.transform.Find("UpSwitch").gameObject);
+
+            var peckSwitch = prefab.GetComponent<PeckSwitch>();
+            if (peckSwitch != null) UnityEngine.Object.Destroy(peckSwitch);
+
+            var matProp = prefab.GetComponent<PeckEffectMaterialProperty>();
+            if (matProp != null) UnityEngine.Object.Destroy(matProp);
+
+            var audio = prefab.GetComponent<PeckEffectAudio>();
+            if (audio != null) UnityEngine.Object.Destroy(audio);
+
+            audio = prefab.GetComponent<PeckEffectAudio>();
+            if (audio != null) UnityEngine.Object.Destroy(audio);
+
+            var toggle = prefab.GetComponent<PeckEffectToggle>();
+            if (toggle != null) UnityEngine.Object.Destroy(toggle);
+
+            originalButton.SetActive(true);
+
             CancelInvoke(nameof(ScanForButton));
             SpawnButtonsOnChildren();
         }
 
         private void SpawnButtonsOnChildren()
         {
+            //Plugin.Log.LogInfo($"****************************** SpawnButtonsOnChildren ******************************");
+
             var root = GameObject.Find("LandmarksNonChallenge/MapRoom/Positioner/Map-Relief/GourdMap");
             if (root == null)
             {
@@ -332,9 +362,12 @@ namespace BigTeleport
                 go.name = targetName;
                 go.transform.SetParent(child);
                 go.transform.localPosition = Vector3.zero;
+                go.SetActive(true);
 
                 //Plugin.Log.LogInfo($"Spawned button at: {spawnPos} for {childName}");
             }
+
+            //Plugin.Log.LogInfo($"SpawnButtonsOnChildren SUCCESS");
         }
 
         private static Transform FindDescendant(Transform root, string name)
