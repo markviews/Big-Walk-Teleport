@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using BepInEx;
+using BepInEx.Configuration;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using BepInEx.Unity.IL2CPP.Utils.Collections;
@@ -12,9 +13,11 @@ using UnityEngine;
 
 namespace BigTeleport
 {
-    [BepInPlugin("markviews.bigTeleport", "Big Teleport", "1.0.1")]
+    [BepInPlugin("markviews.bigTeleport", "Big Teleport", "1.0.2")]
     public class Plugin : BasePlugin
     {
+
+        public static ConfigEntry<float> MinTeleportDistance;
 
         public static readonly System.Collections.Generic.Dictionary<string, string> NameOverrides = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -52,7 +55,16 @@ namespace BigTeleport
             var scannerObj = new GameObject("BigWalkHelloWorld_ButtonScanner");
             UnityEngine.Object.DontDestroyOnLoad(scannerObj);
             scannerObj.AddComponent<ButtonScanner>();
+
+            MinTeleportDistance = Config.Bind(
+                "General",
+                "Min Distance From Puzzle To Teleport To Map Room",
+                20f,
+                "How far you have to be from any puzzle to use 'map' teleport command"
+            );
+
         }
+
     }
 
     public class ButtonScanner : MonoBehaviour
@@ -109,9 +121,9 @@ namespace BigTeleport
                     StartCoroutine(ClearChatbox().WrapToIl2Cpp());
 
                     float dist = GetNearestPuzzle();
-                    if (dist < 20f)
+                    if (dist < Plugin.MinTeleportDistance.Value)
                     {
-                        float needsToMove = Mathf.Max(20 - dist, 0.01f);
+                        float needsToMove = Mathf.Max(Plugin.MinTeleportDistance.Value - dist, 0.01f);
                         ShowMessage($"<color=red>Move {needsToMove:F1}m away from puzzle</color>");
                     }
                     else
